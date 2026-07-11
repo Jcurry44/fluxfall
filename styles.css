@@ -16,6 +16,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+/* WebKit may let an authored display value override the native hidden rule. */
+[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+}
+
 html,
 body {
   width: 100%;
