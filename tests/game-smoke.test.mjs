@@ -16,6 +16,7 @@ function makeNode() {
     textContent: "",
     hidden: false,
     offsetWidth: 0,
+    focus: () => {},
     classList: makeClassList(),
     attributes: new Map(),
     listeners,
@@ -59,12 +60,19 @@ test("the opening gesture resolves into the guaranteed 100-point ring", async ()
     ["#game", canvas],
     ["#score", makeNode()],
     ["#prompt", makeNode()],
+    ["#prompt-step", makeNode()],
+    ["#prompt-title", makeNode()],
+    ["#prompt-detail", makeNode()],
+    ["#help-toggle", makeNode()],
+    ["#rules-overlay", makeNode()],
+    ["#rules-dismiss", makeNode()],
     ["#sound-toggle", makeNode()],
     ["#failure", makeNode()],
     ["#failure-score", makeNode()],
     ["#failure-best", makeNode()],
   ]);
   nodes.get("#failure").hidden = true;
+  nodes.get("#rules-overlay").hidden = true;
 
   const documentListeners = new Map();
   const documentStub = {
@@ -101,7 +109,14 @@ test("the opening gesture resolves into the guaranteed 100-point ring", async ()
   assert.equal(canvas.width, 780);
   assert.equal(canvas.height, 1688);
   assert.equal(nodes.get("#score").textContent, "000000");
-  assert.equal(nodes.get("#prompt").textContent, "SLIDE TO AIM");
+  assert.equal(nodes.get("#prompt-title").textContent, "DRAG THE BLUE − BEAD");
+  assert.equal(nodes.get("#prompt-detail").textContent, "Slide left or right. Release to drop.");
+
+  nodes.get("#help-toggle").listeners.get("click")();
+  assert.equal(nodes.get("#rules-overlay").hidden, false);
+  assert.equal(nodes.get("#help-toggle").attributes.get("aria-expanded"), "true");
+  nodes.get("#rules-dismiss").listeners.get("click")();
+  assert.equal(nodes.get("#rules-overlay").hidden, true);
 
   const pointer = {
     clientX: 220,
@@ -110,7 +125,11 @@ test("the opening gesture resolves into the guaranteed 100-point ring", async ()
     preventDefault: () => {},
   };
   canvas.listeners.get("pointerdown")(pointer);
-  assert.equal(nodes.get("#prompt").textContent, "LIFT TO DROP");
+  assert.equal(nodes.get("#prompt-title").textContent, "RELEASE TO CLOSE THE LOOP");
+  canvas.listeners.get("pointercancel")(pointer);
+  assert.equal(nodes.get("#prompt-title").textContent, "DRAG THE BLUE − BEAD");
+  assert.equal(nodes.get("#score").textContent, "000000");
+  canvas.listeners.get("pointerdown")(pointer);
   canvas.listeners.get("pointerup")(pointer);
 
   let now = performance.now();
@@ -122,5 +141,6 @@ test("the opening gesture resolves into the guaranteed 100-point ring", async ()
   }
 
   assert.equal(nodes.get("#score").textContent, "000100");
+  assert.equal(nodes.get("#prompt-title").textContent, "BUILD AN ALTERNATING LOOP");
   assert.equal(nodes.get("#failure").hidden, true);
 });

@@ -14,6 +14,12 @@ const canvas = document.querySelector("#game");
 const ctx = canvas.getContext("2d", { alpha: false, desynchronized: true });
 const scoreNode = document.querySelector("#score");
 const promptNode = document.querySelector("#prompt");
+const promptStep = document.querySelector("#prompt-step");
+const promptTitle = document.querySelector("#prompt-title");
+const promptDetail = document.querySelector("#prompt-detail");
+const helpButton = document.querySelector("#help-toggle");
+const rulesOverlay = document.querySelector("#rules-overlay");
+const rulesDismiss = document.querySelector("#rules-dismiss");
 const soundButton = document.querySelector("#sound-toggle");
 const failureButton = document.querySelector("#failure");
 const failureScore = document.querySelector("#failure-score");
@@ -77,7 +83,8 @@ const state = {
   nextReadyAt: 0,
   tutorialTarget: { x: 220, y: 344 },
   tutorialDrop: null,
-  promptUntil: 0,
+  currentTouched: false,
+  helpOpen: false,
   danger: 0,
   shake: 0,
 };
@@ -185,8 +192,42 @@ function updateScoreDisplay(bump = false) {
   }
 }
 
-function setPrompt(text) {
-  if (promptNode.textContent !== text) promptNode.textContent = text;
+function setCoach(step = "", title = "", detail = "") {
+  promptNode.hidden = !title;
+  if (!title) return;
+  promptStep.textContent = step;
+  promptTitle.textContent = title;
+  promptDetail.textContent = detail;
+}
+
+function setRulesOpen(open, focus = true) {
+  state.helpOpen = open;
+  rulesOverlay.hidden = !open;
+  helpButton.setAttribute("aria-expanded", String(open));
+  if (open && focus) rulesDismiss.focus({ preventScroll: true });
+}
+
+function updatePlayCoach() {
+  if (state.dropCount === 0) {
+    setCoach("YOUR TURN", "BUILD AN ALTERNATING LOOP", "+ bonds to −. Matching signs push apart.");
+  } else if (state.dropCount === 1) {
+    setCoach("FIELD RULE", "OPPOSITES BOND", "Orange + connects to blue −.");
+  } else if (state.dropCount === 2) {
+    setCoach("THE GOAL", "CLOSE A LOOP TO CLEAR", "Complete an alternating ring to score.");
+  } else if (state.dropCount === 3) {
+    setCoach("THE LIMIT", "STAY BELOW THE CORAL LINE", "Tap ? at any time to see these rules again.");
+  } else {
+    setCoach();
+  }
+}
+
+function updateTutorialAimCoach(keyboard = false) {
+  const aligned = Math.abs(state.aimX - state.tutorialTarget.x) <= 42;
+  if (keyboard) {
+    setCoach("AIMING", aligned ? "PRESS SPACE TO CLOSE THE LOOP" : "USE ← → TO FIND THE GAP", "The blue − bead snaps to the two orange + beads.");
+  } else {
+    setCoach("AIMING", aligned ? "RELEASE TO CLOSE THE LOOP" : "DRAG OVER THE GLOWING GAP", "The blue − bead snaps to the two orange + beads.");
+  }
 }
 
 function addParticle({ x, y, pole, vx = 0, vy = 0, pinned = false }) {
@@ -269,6 +310,7 @@ function advanceCurrent() {
   state.currentPole = state.queue.shift();
   fillQueue();
   state.heldElapsed = 0;
+  state.currentTouched = false;
   state.waitingForNext = false;
   state.aimX = W / 2;
 }
@@ -295,11 +337,12 @@ function resetGame() {
   state.heldElapsed = 0;
   state.waitingForNext = false;
   state.tutorialDrop = null;
-  state.promptUntil = 0;
+  state.currentTouched = false;
+  setRulesOpen(false, false);
   state.danger = 0;
   state.shake = 0;
   failureButton.hidden = true;
-  setPrompt("SLIDE TO AIM");
+  setCoach("FIRST DROP", "DRAG THE BLUE − BEAD", "Slide left or right. Release to drop.");
   updateScoreDisplay();
   seedTutorial();
 }
@@ -619,7 +662,7 @@ function triggerRing(ids, forcedValue = null) {
   state.shake = REDUCED_MOTION ? 0 : 0.07;
   sound.ring(points.length);
   haptic([8, 30, 18]);
-  setPrompt("");
+  setCoach();
 }
 
 function updateEffects(dt) {
@@ -673,7 +716,7 @@ function failGame() {
   failureScore.textContent = formatScore(state.score);
   failureBest.textContent = `BEST ${formatScore(state.best)}`;
   failureButton.hidden = false;
-  setPrompt("");
+  setCoach();
 }
 
 function updateTutorialDrop(dt) {
@@ -690,11 +733,12 @@ function updateTutorialDrop(dt) {
   state.phase = "playing";
   state.waitingForNext = true;
   state.nextReadyAt = state.time + 0.82;
-  state.promptUntil = state.time + 1.95;
   triggerRing(order, 100);
+  setCoach("LOOP CLOSED", "+ AND − BOND", "Close alternating loops to clear them.");
 }
 
 function physicsStep(dt) {
+  if (state.helpOpen) return;
   state.time += dt;
   updateEffects(dt);
   updateTutorialDrop(dt);
@@ -709,20 +753,15 @@ function physicsStep(dt) {
 
   if (state.phase === "gameover") return;
 
-  if (state.currentPole !== null && state.effects.length === 0 && !state.tutorialDrop) {
+  if (state.currentPole !== null && state.effects.length === 0 && !state.tutorialDrop && (state.currentTouched || state.dropCount >= 3)) {
     state.heldElapsed += dt;
-    const deadline = Math.max(1.15, 3.8 - state.dropCount * 0.045);
+    const deadline = state.dropCount < 3 ? 8 : Math.max(1.15, 3.8 - state.dropCount * 0.045);
     if (state.phase === "playing" && state.heldElapsed >= deadline) releaseCurrent();
   }
 
   if (state.waitingForNext && state.currentPole === null && state.effects.length === 0 && state.time >= state.nextReadyAt) {
     advanceCurrent();
-    if (state.promptUntil > state.time) setPrompt("ALTERNATE POLES · CLOSE LOOPS");
-  }
-
-  if (state.promptUntil && state.time > state.promptUntil) {
-    state.promptUntil = 0;
-    setPrompt("");
+    updatePlayCoach();
   }
 }
 
@@ -731,7 +770,6 @@ function releaseCurrent() {
   const pole = state.currentPole;
   state.currentPole = null;
   state.aiming = false;
-  setPrompt("");
 
   if (state.phase === "tutorial") {
     state.tutorialDrop = {
@@ -741,6 +779,7 @@ function releaseCurrent() {
       pole,
     };
     state.phase = "tutorial-drop";
+    setCoach("WATCH THE FIELD", "THE BEAD WILL SNAP INTO PLACE", "Opposite signs attract at close range.");
     haptic(6);
     return;
   }
@@ -749,6 +788,7 @@ function releaseCurrent() {
   state.dropCount += 1;
   state.waitingForNext = true;
   state.nextReadyAt = state.time + 0.46;
+  updatePlayCoach();
   haptic(5);
 }
 
@@ -760,23 +800,28 @@ function pointerPosition(event) {
   };
 }
 
+function aimBounds() {
+  if (state.phase === "tutorial") return { minimum: state.tutorialTarget.x - 64, maximum: state.tutorialTarget.x + 64 };
+  return { minimum: JAR.leftTop + R, maximum: JAR.rightTop - R };
+}
+
 function updateAim(event) {
   const position = pointerPosition(event);
-  const margin = state.phase === "tutorial" ? 98 : JAR.leftTop + R;
-  const maximum = state.phase === "tutorial" ? W - 98 : JAR.rightTop - R;
-  state.aimX = clamp(position.x, margin, maximum);
+  const bounds = aimBounds();
+  state.aimX = clamp(position.x, bounds.minimum, bounds.maximum);
+  if (state.phase === "tutorial" && state.aiming) updateTutorialAimCoach();
 }
 
 canvas.addEventListener("pointerdown", (event) => {
-  if (state.phase === "gameover" || state.currentPole === null || state.effects.length > 0) return;
+  if (state.helpOpen || state.phase === "gameover" || state.currentPole === null || state.effects.length > 0) return;
   event.preventDefault();
   sound.unlock();
   canvas.focus({ preventScroll: true });
   canvas.setPointerCapture(event.pointerId);
-  updateAim(event);
   state.aiming = true;
+  state.currentTouched = true;
+  updateAim(event);
   sound.pickup(state.currentPole);
-  if (state.phase === "tutorial") setPrompt("LIFT TO DROP");
 });
 
 canvas.addEventListener("pointermove", (event) => {
@@ -793,7 +838,14 @@ function endPointer(event) {
 }
 
 canvas.addEventListener("pointerup", endPointer);
-canvas.addEventListener("pointercancel", endPointer);
+canvas.addEventListener("pointercancel", (event) => {
+  if (!state.aiming) return;
+  event.preventDefault();
+  state.aiming = false;
+  state.heldElapsed = 0;
+  if (state.dropCount < 3) state.currentTouched = false;
+  if (state.phase === "tutorial") setCoach("FIRST DROP", "DRAG THE BLUE − BEAD", "Slide left or right. Release to drop.");
+});
 
 canvas.addEventListener("keydown", (event) => {
   if (state.phase === "gameover") {
@@ -804,7 +856,10 @@ canvas.addEventListener("keydown", (event) => {
   if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
     event.preventDefault();
     state.aiming = true;
-    state.aimX = clamp(state.aimX + (event.key === "ArrowLeft" ? -14 : 14), JAR.leftTop + R, JAR.rightTop - R);
+    state.currentTouched = true;
+    const bounds = aimBounds();
+    state.aimX = clamp(state.aimX + (event.key === "ArrowLeft" ? -14 : 14), bounds.minimum, bounds.maximum);
+    if (state.phase === "tutorial") updateTutorialAimCoach(true);
   }
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
@@ -816,6 +871,24 @@ canvas.addEventListener("keydown", (event) => {
 failureButton.addEventListener("click", () => {
   sound.unlock();
   resetGame();
+});
+
+helpButton.addEventListener("click", () => {
+  sound.unlock();
+  setRulesOpen(!state.helpOpen);
+});
+
+rulesDismiss.addEventListener("click", () => {
+  setRulesOpen(false, false);
+  canvas.focus({ preventScroll: true });
+});
+
+rulesOverlay.addEventListener("pointerdown", (event) => {
+  if (event.target === rulesOverlay) setRulesOpen(false, false);
+});
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && state.helpOpen) setRulesOpen(false, false);
 });
 
 soundButton.addEventListener("click", () => {
@@ -1118,14 +1191,28 @@ function drawHeld() {
     ctx.setLineDash([2, 7]);
     ctx.beginPath();
     ctx.moveTo(state.aimX, y + R + 4);
-    ctx.lineTo(state.aimX, JAR.floor - 22);
+    if (state.phase === "tutorial") {
+      const controlY = (y + state.tutorialTarget.y) / 2;
+      ctx.quadraticCurveTo(state.aimX, controlY, state.tutorialTarget.x, state.tutorialTarget.y - R - 8);
+    } else {
+      ctx.lineTo(state.aimX, JAR.floor - 22);
+    }
     ctx.stroke();
     ctx.restore();
   }
   const held = { x: state.aimX, y, r: R, pole: state.currentPole, links: new Set(), vx: 0, vy: 0 };
   drawParticle(held);
 
-  const deadline = Math.max(1.15, 3.8 - state.dropCount * 0.045);
+  if (state.phase === "tutorial" && !state.aiming) {
+    const pulse = 0.5 + Math.sin(state.time * 4) * 0.5;
+    ctx.beginPath();
+    ctx.arc(held.x, held.y, R + 8 + pulse * 4, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(154,244,255,${0.2 + pulse * 0.2})`;
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+
+  const deadline = state.dropCount < 3 ? 8 : Math.max(1.15, 3.8 - state.dropCount * 0.045);
   const progress = clamp(state.heldElapsed / deadline, 0, 1);
   ctx.beginPath();
   ctx.arc(held.x, held.y, R + 7, -Math.PI / 2, -Math.PI / 2 + (1 - progress) * Math.PI * 2);
@@ -1146,11 +1233,15 @@ function drawTutorialDrop() {
   if (!state.tutorialDrop) return;
   const drop = state.tutorialDrop;
   const progress = clamp(drop.age / 0.64, 0, 1);
-  const eased = 1 - Math.pow(1 - progress, 3);
-  const curve = Math.sin(progress * Math.PI) * 13;
+  const snapStart = 0.58;
+  const falling = clamp(progress / snapStart, 0, 1);
+  const snapping = clamp((progress - snapStart) / (1 - snapStart), 0, 1);
+  const fallEase = 1 - Math.pow(1 - falling, 2);
+  const snapEase = 1 - Math.pow(1 - snapping, 3);
+  const snapHeight = drop.end.y - 76;
   const particle = {
-    x: lerp(drop.start.x, drop.end.x, eased) + curve * Math.sign(drop.end.x - drop.start.x || 1),
-    y: lerp(drop.start.y, drop.end.y, eased),
+    x: lerp(drop.start.x, drop.end.x, snapEase),
+    y: progress < snapStart ? lerp(drop.start.y, snapHeight, fallEase) : lerp(snapHeight, drop.end.y, snapEase),
     pole: drop.pole,
     r: R,
     links: new Set(),
@@ -1160,22 +1251,49 @@ function drawTutorialDrop() {
   drawParticle(particle);
 }
 
+function drawTutorialTarget() {
+  if (state.phase !== "tutorial" && state.phase !== "tutorial-drop") return;
+  const target = state.tutorialTarget;
+  const pulse = 0.5 + Math.sin(state.time * 4.4) * 0.5;
+  const halo = ctx.createRadialGradient(target.x, target.y, 2, target.x, target.y, 38 + pulse * 7);
+  halo.addColorStop(0, `rgba(154,244,255,${0.15 + pulse * 0.08})`);
+  halo.addColorStop(1, "rgba(53,207,255,0)");
+  ctx.fillStyle = halo;
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, 46, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.save();
+  ctx.setLineDash([3, 6]);
+  ctx.lineDashOffset = -state.time * 12;
+  ctx.strokeStyle = `rgba(237,255,215,${0.42 + pulse * 0.28})`;
+  ctx.lineWidth = 1.25;
+  ctx.beginPath();
+  ctx.arc(target.x, target.y, R + 8 + pulse * 2, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = "rgba(237,255,215,0.72)";
+  ctx.font = '700 9px ui-rounded, "Segoe UI", sans-serif';
+  ctx.textAlign = "center";
+  ctx.fillText("GLOWING GAP", target.x, target.y - R - 18);
+  ctx.restore();
+}
+
 function drawTutorialGhost() {
-  if (state.phase !== "tutorial" || state.aiming || state.time < 1.2 || REDUCED_MOTION) return;
+  if (state.phase !== "tutorial" || state.aiming || state.time < 1.2) return;
   const cycle = (state.time - 1.2) % 2.4;
   if (cycle > 1.4) return;
-  const progress = cycle / 1.4;
-  const x = lerp(150, 222, 0.5 - Math.cos(progress * Math.PI) * 0.5);
+  const progress = REDUCED_MOTION ? 0 : cycle / 1.4;
+  const x = REDUCED_MOTION ? state.aimX : lerp(state.aimX, state.tutorialTarget.x, 0.5 - Math.cos(progress * Math.PI) * 0.5);
   ctx.save();
-  ctx.globalAlpha = Math.sin(progress * Math.PI) * 0.34;
+  ctx.globalAlpha = REDUCED_MOTION ? 0.38 : Math.sin(progress * Math.PI) * 0.4;
   ctx.strokeStyle = "rgba(237,255,215,0.68)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(x, 151, 10, 0, Math.PI * 2);
+  ctx.arc(x, 106, 11, 0, Math.PI * 2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x, 161);
-  ctx.lineTo(x, 180);
+  ctx.moveTo(x, 117);
+  ctx.lineTo(x, 137);
   ctx.stroke();
   ctx.restore();
 }
@@ -1270,6 +1388,7 @@ function render() {
   ctx.clip();
   drawDangerLine();
   drawFields();
+  drawTutorialTarget();
   drawBonds();
   drawParticles();
   ctx.restore();

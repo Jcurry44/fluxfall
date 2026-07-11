@@ -17,6 +17,7 @@ Then open `http://127.0.0.1:8123` on a portrait browser. It has no packages, bui
 ## Controls and rules
 
 - Slide horizontally to aim; release to drop.
+- Tap `?` at any time for the four-rule field manual; the simulation pauses while it is open.
 - `+` and `−` attract and form permanent bonds.
 - Matching poles push apart before contact.
 - Each bead has two visible sockets and can hold at most two bonds.
@@ -25,7 +26,7 @@ Then open `http://127.0.0.1:8123` on a portrait browser. It has no packages, bui
 - Let the field remain above the coral danger line and the run ends.
 - Keyboard: left/right arrows aim; Space or Enter drops.
 
-The first touch is a guaranteed six-piece closure. It teaches placement, attraction, bonding, the objective, clearing, score, sound, and haptics as one authored interaction.
+The opening is a guaranteed six-piece closure, but the bead now falls from the player's chosen x-position before visibly snapping into the highlighted gap. Event-driven coaching then teaches bonding, loop closure, and the danger line across the first few real drops.
 
 ## Premium bar
 

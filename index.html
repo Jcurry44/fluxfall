@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#05090d" />
     <meta name="color-scheme" content="dark" />
     <title>Fluxfall — Stormglass Prototype</title>
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=2" />
   </head>
   <body>
     <main class="game-shell" aria-label="Fluxfall game prototype">
@@ -19,12 +19,17 @@
           <span class="score-label">FLUX</span>
           <span class="score" id="score">000000</span>
         </div>
-        <button class="sound-toggle" id="sound-toggle" type="button" aria-label="Mute sound" aria-pressed="false">
-          <svg viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 9.5v5h3.2l4.3 3.5V6L8.2 9.5H5Z" />
-            <path class="sound-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
-          </svg>
-        </button>
+        <div class="hud-actions">
+          <button class="hud-button help-toggle" id="help-toggle" type="button" aria-label="How to play" aria-expanded="false">
+            <span aria-hidden="true">?</span>
+          </button>
+          <button class="hud-button sound-toggle" id="sound-toggle" type="button" aria-label="Mute sound" aria-pressed="false">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M5 9.5v5h3.2l4.3 3.5V6L8.2 9.5H5Z" />
+              <path class="sound-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <canvas
@@ -36,17 +41,46 @@
         aria-label="Fluxfall magnetic jar. Slide to aim, release to drop. Opposite poles bond; close alternating loops."
       ></canvas>
 
-      <div class="prompt" id="prompt" aria-live="assertive">SLIDE TO AIM</div>
+      <div class="prompt" id="prompt" aria-live="assertive">
+        <span class="prompt-step" id="prompt-step">FIRST DROP</span>
+        <strong class="prompt-title" id="prompt-title">DRAG THE BLUE − BEAD</strong>
+        <span class="prompt-detail" id="prompt-detail">Slide left or right. Release to drop.</span>
+      </div>
+
+      <div class="rules-overlay" id="rules-overlay" role="dialog" aria-modal="true" aria-labelledby="rules-title" hidden>
+        <section class="rules-card">
+          <span class="rules-kicker">FIELD MANUAL</span>
+          <h1 id="rules-title">HOW TO PLAY</h1>
+          <div class="rule-row">
+            <span class="rule-number">01</span>
+            <div><strong>DRAG. THEN RELEASE.</strong><small>Move the bead at the jar mouth left or right, then let go to drop it.</small></div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">02</span>
+            <div><strong>+ AND − BOND.</strong><small>Opposites connect. Matching signs push each other away.</small></div>
+          </div>
+          <div class="rule-row">
+            <span class="rule-number">03</span>
+            <div><strong>CLOSE A LOOP.</strong><small>Complete an alternating ring to clear it and score.</small></div>
+          </div>
+          <div class="rule-row danger-rule">
+            <span class="rule-number">04</span>
+            <div><strong>STAY BELOW THE CORAL LINE.</strong><small>A bead above the limit for too long collapses the field.</small></div>
+          </div>
+          <button class="rules-dismiss" id="rules-dismiss" type="button">BACK TO THE FIELD</button>
+        </section>
+      </div>
 
       <button class="failure" id="failure" type="button" hidden>
         <span class="failure-kicker">FIELD COLLAPSED</span>
+        <span class="failure-reason">KEEP EVERY BEAD BELOW THE CORAL LIMIT</span>
         <span class="failure-score" id="failure-score">000000</span>
         <span class="failure-best" id="failure-best">BEST 000000</span>
         <span class="failure-action">TAP TO REBUILD</span>
       </button>
 
-      <div class="build-mark" aria-hidden="true">PROTOTYPE 0.1</div>
+      <div class="build-mark" aria-hidden="true">PROTOTYPE 0.2</div>
     </main>
-    <script type="module" src="./game.mjs"></script>
+    <script type="module" src="./game.mjs?v=2"></script>
   </body>
 </html>
