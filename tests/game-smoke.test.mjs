@@ -52,7 +52,7 @@ function makeContext() {
   });
 }
 
-test("the opening teaches a manual earned loop without automatic drops", async () => {
+test("the chamber supports exact 2D placement without gravity or automatic moves", async () => {
   const context = makeContext();
   const canvas = makeNode();
   canvas.width = 390;
@@ -115,8 +115,8 @@ test("the opening teaches a manual earned loop without automatic drops", async (
   assert.equal(canvas.width, 780);
   assert.equal(canvas.height, 1688);
   assert.equal(nodes.get("#score").textContent, "000000");
-  assert.equal(nodes.get("#prompt-title").textContent, "DRAG THE BLUE − BEAD");
-  assert.equal(nodes.get("#prompt-detail").textContent, "Slide left or right. Release to drop.");
+  assert.equal(nodes.get("#prompt-title").textContent, "DRAG + INTO THE GLOWING BRIDGE");
+  assert.equal(nodes.get("#prompt-detail").textContent, "Release when the preview shows two bonds around the core.");
 
   nodes.get("#help-toggle").listeners.get("click")();
   assert.equal(nodes.get("#rules-overlay").hidden, false);
@@ -125,63 +125,69 @@ test("the opening teaches a manual earned loop without automatic drops", async (
   assert.equal(nodes.get("#rules-overlay").hidden, true);
 
   const pointer = {
-    clientX: 220,
-    clientY: 160,
+    clientX: 195,
+    clientY: 438,
     pointerId: 1,
     preventDefault: () => {},
   };
+  assert.equal(game.__test.snapshot().particleCount, 3);
+  assert.equal(game.__test.snapshot().dropCount, 0);
+
   canvas.listeners.get("pointerdown")(pointer);
-  assert.equal(nodes.get("#prompt-title").textContent, "RELEASE TO CLOSE THE LOOP");
+  assert.equal(nodes.get("#prompt-title").textContent, "RELEASE TO BRIDGE BOTH ENDS");
   canvas.listeners.get("pointercancel")(pointer);
-  assert.equal(nodes.get("#prompt-title").textContent, "DRAG THE BLUE − BEAD");
+  assert.equal(nodes.get("#prompt-title").textContent, "DRAG + INTO THE GLOWING BRIDGE");
   assert.equal(nodes.get("#score").textContent, "000000");
-  canvas.listeners.get("pointerdown")(pointer);
-  canvas.listeners.get("pointerup")(pointer);
 
   let now = performance.now();
-  for (let frame = 0; frame < 190; frame += 1) {
+  for (let frame = 0; frame < 600; frame += 1) {
     now += 1000 / 60;
     const callback = nextFrame;
     assert.equal(typeof callback, "function");
     callback(now);
   }
 
-  assert.equal(nodes.get("#score").textContent, "000100");
-  assert.equal(nodes.get("#prompt-title").textContent, "DROP + BETWEEN THE TWO GLOWING − ENDS");
-  assert.deepEqual(game.__test.snapshot(), {
-    score: 100,
-    dropCount: 0,
-    particleCount: 3,
-    bondCount: 2,
-    currentPole: 1,
-    learningStage: "guided-close",
-    waitingForNext: false,
-  });
-
-  for (let frame = 0; frame < 600; frame += 1) {
-    now += 1000 / 60;
-    nextFrame(now);
-  }
-
   const afterWaiting = game.__test.snapshot();
+  assert.equal(afterWaiting.score, 0);
   assert.equal(afterWaiting.dropCount, 0);
   assert.equal(afterWaiting.particleCount, 3);
   assert.equal(afterWaiting.currentPole, 1);
   assert.equal(afterWaiting.learningStage, "guided-close");
 
-  pointer.clientX = 195;
   canvas.listeners.get("pointerdown")(pointer);
+  canvas.listeners.get("pointermove")(pointer);
   assert.equal(nodes.get("#prompt-title").textContent, "RELEASE TO BRIDGE BOTH ENDS");
   canvas.listeners.get("pointerup")(pointer);
 
-  for (let frame = 0; frame < 260; frame += 1) {
+  for (let frame = 0; frame < 120; frame += 1) {
     now += 1000 / 60;
     nextFrame(now);
   }
 
   const afterEarnedLoop = game.__test.snapshot();
   assert.equal(afterEarnedLoop.learningStage, "free");
-  assert.ok(afterEarnedLoop.score >= 200);
+  assert.equal(afterEarnedLoop.score, 100);
   assert.equal(afterEarnedLoop.dropCount, 1);
+  assert.equal(afterEarnedLoop.particleCount, 0);
+  assert.notDeepEqual(
+    { x: afterEarnedLoop.fluxSeed.x, y: afterEarnedLoop.fluxSeed.y },
+    { x: 195, y: 470 },
+  );
+
+  pointer.clientX = 130;
+  pointer.clientY = 350;
+  canvas.listeners.get("pointerdown")(pointer);
+  canvas.listeners.get("pointermove")(pointer);
+  canvas.listeners.get("pointerup")(pointer);
+
+  for (let frame = 0; frame < 600; frame += 1) {
+    now += 1000 / 60;
+    nextFrame(now);
+  }
+
+  const suspended = game.__test.snapshot();
+  assert.equal(suspended.dropCount, 2);
+  assert.equal(suspended.particleCount, 1);
+  assert.ok(Math.abs(suspended.particles[0].y - 350) < 0.001);
   assert.equal(nodes.get("#failure").hidden, true);
 });

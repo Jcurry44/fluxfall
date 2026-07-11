@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#05090d" />
     <meta name="color-scheme" content="dark" />
     <title>Fluxfall — Stormglass Prototype</title>
-    <link rel="stylesheet" href="./styles.css?v=4" />
+    <link rel="stylesheet" href="./styles.css?v=5" />
   </head>
   <body>
     <main class="game-shell" aria-label="Fluxfall game prototype">
@@ -38,13 +38,13 @@
         height="844"
         tabindex="0"
         role="application"
-        aria-label="Fluxfall magnetic jar. Slide to aim, release to drop. Opposite poles bond; close alternating loops."
+        aria-label="Fluxfall magnetic chamber. Drag the active bead anywhere and release to place it. Opposite poles bond; close alternating loops around the flux core."
       ></canvas>
 
       <div class="prompt" id="prompt" aria-live="assertive">
         <span class="prompt-step" id="prompt-step">FIRST DROP</span>
-        <strong class="prompt-title" id="prompt-title">DRAG THE BLUE − BEAD</strong>
-        <span class="prompt-detail" id="prompt-detail">Slide left or right. Release to drop.</span>
+        <strong class="prompt-title" id="prompt-title">DRAG + INTO THE GLOWING BRIDGE</strong>
+        <span class="prompt-detail" id="prompt-detail">Release when it touches both − endpoints.</span>
       </div>
 
       <div class="rules-overlay" id="rules-overlay" role="dialog" aria-modal="true" aria-labelledby="rules-title" hidden>
@@ -53,19 +53,19 @@
           <h1 id="rules-title">HOW TO PLAY</h1>
           <div class="rule-row">
             <span class="rule-number">01</span>
-            <div><strong>DRAG. THEN RELEASE.</strong><small>Move the bead at the jar mouth left or right, then let go to drop it.</small></div>
+            <div><strong>DRAG ANYWHERE. RELEASE TO PLACE.</strong><small>The active bead follows your thumb anywhere inside the field chamber.</small></div>
           </div>
           <div class="rule-row">
             <span class="rule-number">02</span>
-            <div><strong>+ AND − BOND.</strong><small>Opposites connect. Matching signs push each other away.</small></div>
+            <div><strong>+ AND − BOND.</strong><small>The preview shows the exact bond. Matching-sign placements are rejected.</small></div>
           </div>
           <div class="rule-row">
             <span class="rule-number">03</span>
-            <div><strong>BRIDGE BOTH OPEN ENDS.</strong><small>Build an alternating chain, then drop one opposite bead between its two glowing ends.</small></div>
+            <div><strong>ENCIRCLE THE FLUX CORE.</strong><small>Build an alternating chain, then place one opposite bead between its glowing ends.</small></div>
           </div>
           <div class="rule-row danger-rule">
             <span class="rule-number">04</span>
-            <div><strong>STAY BELOW THE CORAL LINE.</strong><small>A bead above the limit for too long collapses the field.</small></div>
+            <div><strong>PLACEMENTS ARE PERMANENT.</strong><small>Plan the route around the core. Closing a loop clears that chain.</small></div>
           </div>
           <button class="rules-dismiss" id="rules-dismiss" type="button">BACK TO THE FIELD</button>
         </section>
@@ -79,8 +79,8 @@
         <span class="failure-action">TAP TO REBUILD</span>
       </button>
 
-      <div class="build-mark" aria-hidden="true">PROTOTYPE 0.4</div>
+      <div class="build-mark" aria-hidden="true">PROTOTYPE 0.5</div>
     </main>
-    <script type="module" src="./game.mjs?v=4"></script>
+    <script type="module" src="./game.mjs?v=5"></script>
   </body>
 </html>

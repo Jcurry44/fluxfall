@@ -77,6 +77,7 @@ const state = {
   queue: [],
   polarityHistory: [],
   aimX: W / 2,
+  aimY: 106,
   aiming: false,
   waitingForNext: false,
   nextReadyAt: 0,
@@ -88,6 +89,8 @@ const state = {
   guidedRetryAt: 0,
   nextCoachUpdateAt: 0,
   coachSignature: "",
+  fluxSeed: { x: 195, y: 470, r: 12 },
+  completedLoops: 0,
   helpOpen: false,
   danger: 0,
   shake: 0,
@@ -216,7 +219,7 @@ function setRulesOpen(open, focus = true) {
 
 function updatePlayCoach() {
   if (state.learningStage === "guided-close") {
-    setCoach("YOUR FIRST LOOP", "DROP + BETWEEN THE TWO GLOWING − ENDS", "One bead can bond to both ends and close the chain.");
+    setCoach("YOUR FIRST LOOP", "DRAG + INTO THE GLOWING BRIDGE", "Release when the preview shows two bonds around the core.");
     return;
   }
   if (state.learningStage !== "free") return;
@@ -227,13 +230,13 @@ function updatePlayCoach() {
   const heldSign = state.currentPole === NORTH ? "+" : "−";
 
   if (opportunity) {
-    setCoach("LOOP READY", `DROP ${heldSign} INTO THE GLOWING BRIDGE`, "It will connect both open ends and close this chain.");
+    setCoach("LOOP READY", `PLACE ${heldSign} IN THE GLOWING BRIDGE`, "Release to connect both ends around the flux core.");
   } else if (longest?.nodes.length >= 3) {
-    setCoach(`CHAIN ${longest.nodes.length}`, "BUILD A U-SHAPED CHAIN", "Keep adding alternating beads to the glowing ends until one bead can bridge both.");
+    setCoach(`CHAIN ${longest.nodes.length}`, "CURVE THE CHAIN AROUND THE CORE", "Place alternating beads at glowing ends until the two ends can share one bead.");
   } else if (longest?.nodes.length === 2) {
-    setCoach("CHAIN STARTED", "ADD TO A GLOWING END", "Only opposite signs bond. Each chain has two open ends.");
+    setCoach("CHAIN STARTED", "PLACE BESIDE A GLOWING END", "Only opposite signs bond. Existing placements stay fixed.");
   } else {
-    setCoach("THE GOAL", "START AN ALTERNATING CHAIN", "Drop + beside −. Connected beads form a bright chain.");
+    setCoach("THE GOAL", "ENCIRCLE THE GLOWING CORE", "Place + beside − to build a bright alternating chain.");
   }
 }
 
@@ -247,11 +250,11 @@ function updateTutorialAimCoach(keyboard = false) {
 }
 
 function updateGuidedAimCoach(keyboard = false) {
-  const aligned = Math.abs(state.aimX - state.guidedTarget.x) <= 18;
+  const aligned = Math.hypot(state.aimX - state.guidedTarget.x, state.aimY - state.guidedTarget.y) <= 26;
   if (keyboard) {
-    setCoach("YOUR FIRST LOOP", aligned ? "PRESS SPACE TO BRIDGE BOTH ENDS" : "USE ← → TO FIND THE BRIDGE", "The + bead must touch both glowing − endpoints.");
+    setCoach("YOUR FIRST LOOP", aligned ? "PRESS SPACE TO BRIDGE BOTH ENDS" : "USE THE ARROWS TO REACH THE BRIDGE", "The + bead must touch both glowing − endpoints around the core.");
   } else {
-    setCoach("YOUR FIRST LOOP", aligned ? "RELEASE TO BRIDGE BOTH ENDS" : "DRAG + OVER THE GLOWING BRIDGE", "The + bead must touch both glowing − endpoints.");
+    setCoach("YOUR FIRST LOOP", aligned ? "RELEASE TO BRIDGE BOTH ENDS" : "DRAG + INTO THE GLOWING BRIDGE", "The + bead must touch both glowing − endpoints around the core.");
   }
 }
 
@@ -328,9 +331,11 @@ function findBridgeOpportunity(pole = state.currentPole) {
       { x: midpoint.x - perpendicular.x * height, y: midpoint.y - perpendicular.y * height },
     ];
     const centroid = chain.nodes.reduce((total, node) => ({ x: total.x + node.x / chain.nodes.length, y: total.y + node.y / chain.nodes.length }), { x: 0, y: 0 });
+    const ordered = orderChain(chain);
     const valid = candidates.filter((candidate) => {
       const bounds = jarBoundsAt(candidate.y);
-      return candidate.y > JAR.top + R * 2 && candidate.y < JAR.floor - R && candidate.x > bounds.left + R && candidate.x < bounds.right - R;
+      const polygon = [candidate, ...ordered];
+      return candidate.y > JAR.top + R * 2 && candidate.y < JAR.floor - R && candidate.x > bounds.left + R && candidate.x < bounds.right - R && pointInPolygon(state.fluxSeed, polygon);
     });
     if (valid.length === 0) continue;
     valid.sort((a, b) => Math.hypot(b.x - centroid.x, b.y - centroid.y) - Math.hypot(a.x - centroid.x, a.y - centroid.y));
@@ -339,10 +344,122 @@ function findBridgeOpportunity(pole = state.currentPole) {
   return null;
 }
 
+function orderChain(chain) {
+  const ordered = [];
+  const allowed = new Set(chain.nodes.map((node) => node.id));
+  let current = chain.endpoints[0];
+  let previous = null;
+  while (current) {
+    ordered.push(current);
+    const nextId = [...current.links].find((id) => id !== previous && allowed.has(id));
+    if (nextId === undefined) break;
+    previous = current.id;
+    current = getParticle(nextId);
+  }
+  return ordered;
+}
+
 function activeLearningTarget() {
   if (state.phase === "tutorial" || state.phase === "tutorial-drop") return state.tutorialTarget;
   if (state.learningStage === "guided-close") return state.guidedTarget;
   return null;
+}
+
+function projectIntoChamber(position, radius = R) {
+  const projected = {
+    x: position.x,
+    y: clamp(position.y, JAR.top + radius + 12, JAR.floor - radius - 6),
+  };
+  const bounds = jarBoundsAt(Math.min(projected.y, JAR.curveY));
+  projected.x = clamp(projected.x, bounds.left + radius + 5, bounds.right - radius - 5);
+
+  if (projected.y > JAR.curveY) {
+    const cornerLimit = JAR.cornerRadius - radius - 5;
+    const leftCenter = { x: JAR.leftFloor + JAR.cornerRadius, y: JAR.curveY };
+    const rightCenter = { x: JAR.rightFloor - JAR.cornerRadius, y: JAR.curveY };
+    const center = projected.x < leftCenter.x ? leftCenter : projected.x > rightCenter.x ? rightCenter : null;
+    if (center) {
+      const dx = projected.x - center.x;
+      const dy = projected.y - center.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      if (distance > cornerLimit) {
+        projected.x = center.x + (dx / distance) * cornerLimit;
+        projected.y = center.y + (dy / distance) * cornerLimit;
+      }
+    }
+  }
+  return projected;
+}
+
+function placementPreview(position = { x: state.aimX, y: state.aimY }, pole = state.currentPole) {
+  const projected = projectIntoChamber(position);
+  if (pole === null) return { kind: "blocked", snap: projected, targets: [], message: "NO ACTIVE BEAD" };
+
+  const guided = state.learningStage === "guided-close";
+  const bridge = guided
+    ? { target: state.guidedTarget, endpoints: getOpenChains()[0]?.endpoints ?? [] }
+    : findBridgeOpportunity(pole);
+  if (bridge && bridge.endpoints.length === 2 && Math.hypot(projected.x - bridge.target.x, projected.y - bridge.target.y) <= (guided ? 86 : 58)) {
+    return { kind: "bridge", snap: { ...bridge.target }, targets: bridge.endpoints, message: "TWO BONDS · LOOP" };
+  }
+  if (guided) return { kind: "blocked", snap: projected, targets: [], message: "MOVE INTO THE GLOWING BRIDGE" };
+
+  const sameConflict = state.particles.find((particle) => particle.pole === pole && Math.hypot(projected.x - particle.x, projected.y - particle.y) < R * 2 + 13);
+  if (sameConflict) return { kind: "blocked", snap: projected, targets: [sameConflict], message: "MATCHING SIGNS REPEL" };
+
+  const candidates = state.particles
+    .filter((particle) => particle.pole !== pole && particle.links.size < 2)
+    .map((particle) => ({ particle, distance: Math.hypot(projected.x - particle.x, projected.y - particle.y) }))
+    .filter((candidate) => candidate.distance <= 62)
+    .sort((first, second) => first.distance - second.distance || first.particle.id - second.particle.id);
+
+  if (candidates.length > 0) {
+    const target = candidates[0].particle;
+    let dx = projected.x - target.x;
+    let dy = projected.y - target.y;
+    let distance = Math.hypot(dx, dy);
+    if (distance < 0.001) {
+      dx = 0;
+      dy = -1;
+      distance = 1;
+    }
+    const snap = projectIntoChamber({ x: target.x + (dx / distance) * (R * 2 + 2), y: target.y + (dy / distance) * (R * 2 + 2) });
+    const collision = state.particles.find((particle) => particle.id !== target.id && Math.hypot(snap.x - particle.x, snap.y - particle.y) < R * 2 + 1);
+    if (collision) return { kind: "blocked", snap: projected, targets: [collision], message: "THAT SPACE IS OCCUPIED" };
+    return { kind: "bond", snap, targets: [target], message: "ONE BOND · EXTEND" };
+  }
+
+  const overlap = state.particles.find((particle) => Math.hypot(projected.x - particle.x, projected.y - particle.y) < R * 2 + 3);
+  if (overlap) return { kind: "blocked", snap: projected, targets: [overlap], message: "THAT SPACE IS OCCUPIED" };
+  return { kind: "free", snap: projected, targets: [], message: "NEW CHAIN SEED" };
+}
+
+function commitPlacement(preview, pole) {
+  const particle = addParticle({ x: preview.snap.x, y: preview.snap.y, pole, pinned: true });
+  let closedCycle = null;
+
+  for (const target of preview.targets) {
+    const ids = state.particles.map((item) => item.id);
+    const cycle = cycleCreatedByBond(ids, state.bonds, { a: particle.id, b: target.id });
+    if (cycle && !cycleIsReadable(cycle)) continue;
+    addBond(particle, target);
+    if (cycle) closedCycle = cycle;
+  }
+
+  if (closedCycle) triggerRing(closedCycle);
+  return { particle, closed: Boolean(closedCycle) };
+}
+
+function relocateFluxSeed() {
+  const positions = [
+    { x: 145, y: 430 },
+    { x: 245, y: 520 },
+    { x: 150, y: 585 },
+    { x: 238, y: 390 },
+    { x: 195, y: 535 },
+  ];
+  state.completedLoops += 1;
+  state.fluxSeed = { ...positions[state.completedLoops % positions.length], r: 12 + Math.min(5, state.completedLoops) };
 }
 
 function addBond(first, second, quiet = false) {
@@ -380,12 +497,12 @@ function seedTutorial() {
 }
 
 function seedGuidedClosure() {
-  const left = addParticle({ x: 168, y: 710, pole: SOUTH, pinned: true });
-  const middle = addParticle({ x: 195, y: 742, pole: NORTH, pinned: true });
-  const right = addParticle({ x: 222, y: 710, pole: SOUTH, pinned: true });
+  const left = addParticle({ x: 168, y: 470, pole: SOUTH, pinned: true });
+  const middle = addParticle({ x: 195, y: 502, pole: NORTH, pinned: true });
+  const right = addParticle({ x: 222, y: 470, pole: SOUTH, pinned: true });
   addBond(left, middle, true);
   addBond(middle, right, true);
-  state.guidedTarget = { x: 195, y: 678 };
+  state.guidedTarget = { x: 195, y: 438 };
   state.guidedReleasedId = null;
   state.guidedRetryAt = 0;
   state.learningStage = "guided-close";
@@ -393,6 +510,7 @@ function seedGuidedClosure() {
   state.queue = [SOUTH, NORTH];
   state.polarityHistory = [NORTH, SOUTH, NORTH];
   state.aimX = state.guidedTarget.x;
+  state.aimY = 106;
   state.aiming = false;
   state.waitingForNext = false;
   updatePlayCoach();
@@ -418,13 +536,14 @@ function advanceCurrent() {
   fillQueue();
   state.waitingForNext = false;
   state.aimX = W / 2;
+  state.aimY = 106;
 }
 
 function resetGame() {
   nextId = 1;
   state.time = 0;
   state.startedAt = performance.now() / 1000;
-  state.phase = "tutorial";
+  state.phase = "playing";
   state.score = 0;
   state.combo = 1;
   state.lastRingAt = -99;
@@ -434,25 +553,27 @@ function resetGame() {
   state.effects = [];
   state.motes = [];
   state.wallBlooms = [];
-  state.currentPole = SOUTH;
+  state.currentPole = null;
   state.queue = [];
   state.polarityHistory = [];
   state.aimX = W / 2;
+  state.aimY = 106;
   state.aiming = false;
   state.waitingForNext = false;
   state.tutorialDrop = null;
-  state.learningStage = "demo";
+  state.learningStage = "guided-close";
   state.guidedReleasedId = null;
   state.guidedRetryAt = 0;
   state.nextCoachUpdateAt = 0;
   state.coachSignature = "";
+  state.fluxSeed = { x: 195, y: 470, r: 12 };
+  state.completedLoops = 0;
   setRulesOpen(false, false);
   state.danger = 0;
   state.shake = 0;
   failureButton.hidden = true;
-  setCoach("FIRST DROP", "DRAG THE BLUE − BEAD", "Slide left or right. Release to drop.");
   updateScoreDisplay();
-  seedTutorial();
+  seedGuidedClosure();
 }
 
 function jarBoundsAt(y) {
@@ -536,7 +657,7 @@ function applyForces(dt) {
     particle.prevX = particle.x;
     particle.prevY = particle.y;
     particle.ax = 0;
-    particle.ay = particle.pinned ? 0 : 500;
+    particle.ay = 0;
   }
 
   for (let firstIndex = 0; firstIndex < state.particles.length; firstIndex += 1) {
@@ -575,12 +696,10 @@ function applyForces(dt) {
 
   for (const particle of state.particles) {
     if (particle.pinned) continue;
-    const magneticX = particle.ax;
-    const magneticY = particle.ay - 500;
-    const magneticLength = Math.hypot(magneticX, magneticY);
+    const magneticLength = Math.hypot(particle.ax, particle.ay);
     if (magneticLength > 2200) {
-      particle.ax = (magneticX / magneticLength) * 2200;
-      particle.ay = 500 + (magneticY / magneticLength) * 2200;
+      particle.ax = (particle.ax / magneticLength) * 2200;
+      particle.ay = (particle.ay / magneticLength) * 2200;
     }
   }
 
@@ -607,7 +726,7 @@ function applyForces(dt) {
     }
   }
 
-  const damping = Math.exp(-0.68 * dt);
+  const damping = Math.exp(-1.8 * dt);
   for (const particle of state.particles) {
     if (particle.pinned) continue;
     particle.vx = (particle.vx + particle.ax * dt) * damping;
@@ -756,6 +875,7 @@ function triggerRing(ids, forcedValue = null) {
   const ring = ids.map(getParticle).filter(Boolean);
   if (ring.length < 4) return;
   const points = ring.map((particle) => ({ x: particle.x, y: particle.y, pole: particle.pole }));
+  const capturedCore = pointInPolygon(state.fluxSeed, points);
   const center = points.reduce((total, point) => ({ x: total.x + point.x / points.length, y: total.y + point.y / points.length }), { x: 0, y: 0 });
   const enclosed = state.particles.filter((particle) => !ids.includes(particle.id) && pointInPolygon(particle, points));
   state.combo = state.time - state.lastRingAt < 2.8 ? Math.min(5, state.combo + 1) : 1;
@@ -771,6 +891,7 @@ function triggerRing(ids, forcedValue = null) {
   state.shake = REDUCED_MOTION ? 0 : 0.07;
   sound.ring(points.length);
   haptic([8, 30, 18]);
+  if (capturedCore) relocateFluxSeed();
   if (guidedCompletion) {
     state.learningStage = "free";
     state.guidedReleasedId = null;
@@ -870,18 +991,6 @@ function physicsStep(dt) {
   if (state.helpOpen) return;
   state.time += dt;
   updateEffects(dt);
-  updateTutorialDrop(dt);
-
-  if (state.learningStage === "guided-prep" && state.effects.length === 0 && state.currentPole === null) seedGuidedClosure();
-
-  if (state.phase !== "gameover" && state.phase !== "tutorial") {
-    const slowMotion = state.effects.some((effect) => effect.age < 0.09) ? 0.35 : 1;
-    applyForces(dt * slowMotion);
-    resolveCollisions();
-    scanForBonds();
-    dangerCheck(dt);
-    updateGuidedRetry();
-  }
 
   if (state.phase === "gameover") return;
 
@@ -899,32 +1008,25 @@ function physicsStep(dt) {
 function releaseCurrent() {
   if (state.currentPole === null || state.effects.length > 0) return;
   const pole = state.currentPole;
-  state.currentPole = null;
-  state.aiming = false;
-
-  if (state.phase === "tutorial") {
-    state.tutorialDrop = {
-      age: 0,
-      start: { x: state.aimX, y: 106 },
-      end: { ...state.tutorialTarget },
-      pole,
-    };
-    state.phase = "tutorial-drop";
-    setCoach("WATCH THE FIELD", "THE BEAD WILL SNAP INTO PLACE", "Opposite signs attract at close range.");
-    haptic(6);
+  const preview = placementPreview();
+  if (preview.kind === "blocked") {
+    state.aiming = false;
+    state.aimX = W / 2;
+    state.aimY = 106;
+    setCoach("PLACEMENT REJECTED", preview.message, state.learningStage === "guided-close" ? "Drag the + bead into the glowing bridge around the core." : "Move the bead and release again.");
+    sound.tone(118, 74, 0.12, 0.022, "triangle");
+    haptic(9);
     return;
   }
 
-  const released = addParticle({ x: state.aimX, y: 108, pole, vy: 42 });
+  const wasGuided = state.learningStage === "guided-close";
+  state.currentPole = null;
+  state.aiming = false;
+  const placement = commitPlacement(preview, pole);
   state.dropCount += 1;
-  if (state.learningStage === "guided-close") {
-    state.guidedReleasedId = released.id;
-    state.guidedRetryAt = state.time + 3.2;
-    state.waitingForNext = false;
-    setCoach("BRIDGE IN MOTION", "WATCH THE + SEEK BOTH GLOWING ENDS", "A loop closes only when the bead bonds to both endpoints.");
-  } else {
+  if (!(wasGuided && placement.closed)) {
     state.waitingForNext = true;
-    state.nextReadyAt = state.time + 0.46;
+    state.nextReadyAt = state.time + (placement.closed ? 0.82 : 0.22);
     updatePlayCoach();
   }
   haptic(5);
@@ -938,18 +1040,18 @@ function pointerPosition(event) {
   };
 }
 
-function aimBounds() {
-  if (state.phase === "tutorial") return { minimum: state.tutorialTarget.x - 64, maximum: state.tutorialTarget.x + 64 };
-  if (state.learningStage === "guided-close") return { minimum: state.guidedTarget.x - 32, maximum: state.guidedTarget.x + 32 };
-  return { minimum: JAR.leftTop + R, maximum: JAR.rightTop - R };
-}
-
 function updateAim(event) {
   const position = pointerPosition(event);
-  const bounds = aimBounds();
-  state.aimX = clamp(position.x, bounds.minimum, bounds.maximum);
-  if (state.phase === "tutorial" && state.aiming) updateTutorialAimCoach();
-  else if (state.learningStage === "guided-close" && state.aiming) updateGuidedAimCoach();
+  let projected = projectIntoChamber(position);
+  if (state.learningStage === "guided-close") {
+    projected = projectIntoChamber({
+      x: clamp(projected.x, state.guidedTarget.x - 72, state.guidedTarget.x + 72),
+      y: clamp(projected.y, state.guidedTarget.y - 92, state.guidedTarget.y + 92),
+    });
+  }
+  state.aimX = projected.x;
+  state.aimY = projected.y;
+  if (state.learningStage === "guided-close" && state.aiming) updateGuidedAimCoach();
 }
 
 canvas.addEventListener("pointerdown", (event) => {
@@ -981,8 +1083,9 @@ canvas.addEventListener("pointercancel", (event) => {
   if (!state.aiming) return;
   event.preventDefault();
   state.aiming = false;
-  if (state.phase === "tutorial") setCoach("FIRST DROP", "DRAG THE BLUE − BEAD", "Slide left or right. Release to drop.");
-  else if (state.learningStage === "guided-close") updatePlayCoach();
+  state.aimX = W / 2;
+  state.aimY = 106;
+  if (state.learningStage === "guided-close") updatePlayCoach();
 });
 
 canvas.addEventListener("keydown", (event) => {
@@ -991,13 +1094,16 @@ canvas.addEventListener("keydown", (event) => {
     return;
   }
   if (state.currentPole === null || state.effects.length > 0) return;
-  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+  if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key)) {
     event.preventDefault();
     state.aiming = true;
-    const bounds = aimBounds();
-    state.aimX = clamp(state.aimX + (event.key === "ArrowLeft" ? -14 : 14), bounds.minimum, bounds.maximum);
-    if (state.phase === "tutorial") updateTutorialAimCoach(true);
-    else if (state.learningStage === "guided-close") updateGuidedAimCoach(true);
+    const projected = projectIntoChamber({
+      x: state.aimX + (event.key === "ArrowLeft" ? -14 : event.key === "ArrowRight" ? 14 : 0),
+      y: state.aimY + (event.key === "ArrowUp" ? -14 : event.key === "ArrowDown" ? 14 : 0),
+    });
+    state.aimX = projected.x;
+    state.aimY = projected.y;
+    if (state.learningStage === "guided-close") updateGuidedAimCoach(true);
   }
   if (event.key === "Enter" || event.key === " ") {
     event.preventDefault();
@@ -1114,6 +1220,8 @@ function drawJarFront() {
 
   ctx.beginPath();
   ctx.ellipse(W / 2, JAR.top, (JAR.rightTop - JAR.leftTop) / 2, 7, 0, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(141,223,232,0.055)";
+  ctx.fill();
   ctx.strokeStyle = "rgba(216,249,252,0.29)";
   ctx.lineWidth = 1.25;
   ctx.stroke();
@@ -1179,7 +1287,8 @@ function drawFields() {
     }
   }
   if (state.currentPole !== null && state.aiming) {
-    const held = { x: state.aimX, y: 108, pole: state.currentPole };
+    const preview = placementPreview();
+    const held = { x: preview.snap.x, y: preview.snap.y, pole: state.currentPole };
     for (const particle of state.particles) {
       const distance = Math.hypot(particle.x - held.x, particle.y - held.y);
       if (distance < R * 7) relationships.push({ first: held, second: particle, distance, priority: distance - 80 });
@@ -1372,8 +1481,35 @@ function drawBridgeOpportunity() {
   ctx.fillStyle = "rgba(237,255,215,0.86)";
   ctx.font = '700 9px ui-rounded, "Segoe UI", sans-serif';
   ctx.textAlign = "center";
-  ctx.fillText("DROP TO CLOSE", target.x, target.y - R - 17);
+  ctx.fillText("PLACE HERE TO CLOSE", target.x, target.y - R - 17);
   ctx.restore();
+}
+
+function drawFluxSeed() {
+  const seed = state.fluxSeed;
+  const pulse = 0.5 + Math.sin(state.time * 3.4) * 0.5;
+  const glowRadius = seed.r * (3.1 + pulse * 0.4);
+  const glow = ctx.createRadialGradient(seed.x, seed.y, 0, seed.x, seed.y, glowRadius);
+  glow.addColorStop(0, "rgba(237,255,215,0.78)");
+  glow.addColorStop(0.26, "rgba(154,244,255,0.3)");
+  glow.addColorStop(1, "rgba(53,207,255,0)");
+  ctx.fillStyle = glow;
+  ctx.beginPath();
+  ctx.arc(seed.x, seed.y, glowRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "rgba(237,255,215,0.94)";
+  ctx.beginPath();
+  ctx.arc(seed.x, seed.y, seed.r * (0.52 + pulse * 0.08), 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = `rgba(154,244,255,${0.38 + pulse * 0.28})`;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(seed.x, seed.y, seed.r * 1.55 + pulse * 3, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(237,255,215,0.62)";
+  ctx.font = '700 8px ui-rounded, "Segoe UI", sans-serif';
+  ctx.textAlign = "center";
+  ctx.fillText("FLUX CORE", seed.x, seed.y + seed.r + 24);
 }
 
 function drawAirborneParticles() {
@@ -1389,31 +1525,55 @@ function drawAirborneParticles() {
 
 function drawHeld() {
   if (state.currentPole === null || state.phase === "gameover") return;
-  const y = 106 + (state.aiming ? -2 : Math.sin(state.time * 2.2) * 1.5);
+  const dockY = 106 + Math.sin(state.time * 2.2) * 1.5;
+  const preview = state.aiming ? placementPreview() : null;
+  const display = preview ? preview.snap : { x: state.aimX, y: dockY };
   if (state.aiming) {
     ctx.save();
-    const guide = ctx.createLinearGradient(0, y + R, 0, JAR.floor);
+    const guide = ctx.createLinearGradient(0, dockY, 0, display.y);
     guide.addColorStop(0, "rgba(237,255,215,0.26)");
-    guide.addColorStop(1, "rgba(237,255,215,0)");
+    guide.addColorStop(1, "rgba(237,255,215,0.12)");
     ctx.strokeStyle = guide;
-    ctx.lineWidth = 0.8;
+    ctx.lineWidth = 1;
     ctx.setLineDash([2, 7]);
     ctx.beginPath();
-    ctx.moveTo(state.aimX, y + R + 4);
-    const learningTarget = activeLearningTarget();
-    if (learningTarget) {
-      const controlY = (y + learningTarget.y) / 2;
-      ctx.quadraticCurveTo(state.aimX, controlY, learningTarget.x, learningTarget.y - R - 8);
-    } else {
-      ctx.lineTo(state.aimX, JAR.floor - 22);
-    }
+    ctx.moveTo(W / 2, dockY + R + 4);
+    ctx.quadraticCurveTo(W / 2, (dockY + display.y) / 2, display.x, display.y);
     ctx.stroke();
+
+    ctx.setLineDash(preview.kind === "blocked" ? [4, 6] : []);
+    ctx.lineWidth = preview.kind === "blocked" ? 1.4 : 2;
+    ctx.strokeStyle = preview.kind === "blocked" ? "rgba(255,82,107,0.72)" : "rgba(237,255,215,0.74)";
+    for (const target of preview.targets) {
+      ctx.beginPath();
+      ctx.moveTo(display.x, display.y);
+      ctx.lineTo(target.x, target.y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if (Math.hypot(state.aimX - display.x, state.aimY - display.y) > 3) {
+      ctx.strokeStyle = "rgba(154,244,255,0.38)";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(state.aimX, state.aimY);
+      ctx.lineTo(display.x, display.y);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(state.aimX, state.aimY, 8, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = preview.kind === "blocked" ? "rgba(255,143,157,0.88)" : "rgba(237,255,215,0.76)";
+    ctx.font = '700 8px ui-rounded, "Segoe UI", sans-serif';
+    ctx.textAlign = "center";
+    ctx.fillText(preview.message, display.x, display.y - R - 16);
     ctx.restore();
   }
-  const held = { x: state.aimX, y, r: R, pole: state.currentPole, links: new Set(), vx: 0, vy: 0 };
+  const held = { x: display.x, y: display.y, r: R, pole: state.currentPole, links: new Set(), vx: 0, vy: 0 };
   drawParticle(held);
 
-  if (state.phase === "tutorial" && !state.aiming) {
+  if (state.learningStage === "guided-close" && !state.aiming) {
     const pulse = 0.5 + Math.sin(state.time * 4) * 0.5;
     ctx.beginPath();
     ctx.arc(held.x, held.y, R + 8 + pulse * 4, 0, Math.PI * 2);
@@ -1482,21 +1642,23 @@ function drawTutorialTarget() {
 }
 
 function drawTutorialGhost() {
-  if (state.phase !== "tutorial" || state.aiming || state.time < 1.2) return;
+  if (state.learningStage !== "guided-close" || state.aiming || state.time < 1.2) return;
   const cycle = (state.time - 1.2) % 2.4;
   if (cycle > 1.4) return;
   const progress = REDUCED_MOTION ? 0 : cycle / 1.4;
-  const x = REDUCED_MOTION ? state.aimX : lerp(state.aimX, state.tutorialTarget.x, 0.5 - Math.cos(progress * Math.PI) * 0.5);
+  const travel = REDUCED_MOTION ? 0.65 : 0.5 - Math.cos(progress * Math.PI) * 0.5;
+  const x = lerp(W / 2, state.guidedTarget.x, travel);
+  const y = lerp(106, state.guidedTarget.y, travel);
   ctx.save();
   ctx.globalAlpha = REDUCED_MOTION ? 0.38 : Math.sin(progress * Math.PI) * 0.4;
   ctx.strokeStyle = "rgba(237,255,215,0.68)";
   ctx.lineWidth = 1;
   ctx.beginPath();
-  ctx.arc(x, 106, 11, 0, Math.PI * 2);
+  ctx.arc(x, y, 11, 0, Math.PI * 2);
   ctx.stroke();
   ctx.beginPath();
-  ctx.moveTo(x, 117);
-  ctx.lineTo(x, 137);
+  ctx.moveTo(x, y + 11);
+  ctx.lineTo(x, y + 31);
   ctx.stroke();
   ctx.restore();
 }
@@ -1589,7 +1751,7 @@ function render() {
   ctx.save();
   jarPath(ctx);
   ctx.clip();
-  drawDangerLine();
+  drawFluxSeed();
   drawFields();
   drawTutorialTarget();
   drawParticles();
@@ -1597,7 +1759,6 @@ function render() {
   drawOpenEndpoints();
   drawBridgeOpportunity();
   ctx.restore();
-  drawAirborneParticles();
   drawRingEffects();
   drawHeld();
   drawTutorialDrop();
@@ -1645,6 +1806,9 @@ export const __test = {
     currentPole: state.currentPole,
     learningStage: state.learningStage,
     waitingForNext: state.waitingForNext,
+    held: { x: state.aimX, y: state.aimY, dragging: state.aiming },
+    particles: state.particles.map((particle) => ({ id: particle.id, x: particle.x, y: particle.y, pole: particle.pole, links: particle.links.size })),
+    fluxSeed: { ...state.fluxSeed },
   }),
 };
 

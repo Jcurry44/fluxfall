@@ -1,6 +1,6 @@
 # Fluxfall — Stormglass prototype
 
-Fluxfall is a one-thumb portrait puzzle game about charged ceramic beads in a living magnetic field. Opposite poles bond, matching poles repel, and alternating closed loops collapse into score.
+Fluxfall is a one-thumb portrait puzzle game about charged ceramic beads suspended in a living magnetic chamber. Opposite poles bond, matching placements repel, and alternating closed loops around a flux core collapse into score.
 
 This prototype deliberately begins in the playable jar. There is no landing page, account flow, currency, upgrade tree, or decorative menu between the player and the verb.
 
@@ -16,19 +16,18 @@ Then open `http://127.0.0.1:8123` on a portrait browser. It has no packages, bui
 
 ## Controls and rules
 
-- Slide horizontally to aim; release to drop.
-- Beads never drop automatically in this prototype. Take as long as you need to aim.
+- Drag the active bead anywhere in the chamber; release to commit its exact previewed position.
+- There is no gravity, drift, timer, or automatic placement. Take as long as you need.
 - Tap `?` at any time for the four-rule field manual; the simulation pauses while it is open.
 - `+` and `−` attract and form permanent bonds.
-- Matching poles push apart before contact.
+- Matching-pole placements are rejected with a repulsion pulse.
 - Bright connectors show real bonds; pulsing pearls mark the two open ends of each chain.
-- Build an alternating chain, then drop one opposite bead into a glowing bridge that touches both open ends.
-- Closing that even loop clears it and scores.
+- Build an alternating chain around the luminous flux core, then place one opposite bead into a glowing bridge that touches both open ends.
+- Closing that even loop clears it, scores, and moves the core to a new location.
 - Larger rings and cascade waves are worth more.
-- Let the field remain above the coral danger line and the run ends.
-- Keyboard: left/right arrows aim; Space or Enter drops.
+- Keyboard: arrow keys move the active bead in two dimensions; Space or Enter places it.
 
-The opening demonstrates a six-piece closure. The next lesson pauses on a pinned three-bead U-chain and waits indefinitely for the player to bridge its two glowing ends with a fourth bead. A missed attempt is returned for another try. Free play then keeps real bonds, endpoints, and any immediately closable bridge visible.
+The opening begins directly on a suspended three-bead chain surrounding a flux core. It waits indefinitely for the player to drag the fourth bead into the two-bond bridge. Free play keeps exact placement previews, real bonds, open endpoints, and any valid core-enclosing bridge visible.
 
 ## Premium bar
 
