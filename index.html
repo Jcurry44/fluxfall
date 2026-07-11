@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#05090d" />
+    <meta name="color-scheme" content="dark" />
+    <title>Fluxfall — Stormglass Prototype</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="game-shell" aria-label="Fluxfall game prototype">
+      <header class="hud" aria-live="polite">
+        <div class="identity" aria-label="Fluxfall, field one">
+          <span class="wordmark">FLUXFALL</span>
+          <span class="edition">FIELD // 01</span>
+        </div>
+        <div class="score-block">
+          <span class="score-label">FLUX</span>
+          <span class="score" id="score">000000</span>
+        </div>
+        <button class="sound-toggle" id="sound-toggle" type="button" aria-label="Mute sound" aria-pressed="false">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M5 9.5v5h3.2l4.3 3.5V6L8.2 9.5H5Z" />
+            <path class="sound-wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" />
+          </svg>
+        </button>
+      </header>
+
+      <canvas
+        id="game"
+        width="390"
+        height="844"
+        tabindex="0"
+        role="application"
+        aria-label="Fluxfall magnetic jar. Slide to aim, release to drop. Opposite poles bond; close alternating loops."
+      ></canvas>
+
+      <div class="prompt" id="prompt" aria-live="assertive">SLIDE TO AIM</div>
+
+      <button class="failure" id="failure" type="button" hidden>
+        <span class="failure-kicker">FIELD COLLAPSED</span>
+        <span class="failure-score" id="failure-score">000000</span>
+        <span class="failure-best" id="failure-best">BEST 000000</span>
+        <span class="failure-action">TAP TO REBUILD</span>
+      </button>
+
+      <div class="build-mark" aria-hidden="true">PROTOTYPE 0.1</div>
+    </main>
+    <script type="module" src="./game.mjs"></script>
+  </body>
+</html>
