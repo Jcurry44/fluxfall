@@ -52,7 +52,7 @@ function makeContext() {
   });
 }
 
-test("the opening gesture resolves into the guaranteed 100-point ring", async () => {
+test("the opening teaches a manual earned loop without automatic drops", async () => {
   const context = makeContext();
   const canvas = makeNode();
   canvas.width = 390;
@@ -110,7 +110,7 @@ test("the opening gesture resolves into the guaranteed 100-point ring", async ()
     configurable: true,
   });
 
-  await import(`../game.mjs?smoke=${Date.now()}`);
+  const game = await import(`../game.mjs?smoke=${Date.now()}`);
 
   assert.equal(canvas.width, 780);
   assert.equal(canvas.height, 1688);
@@ -147,6 +147,41 @@ test("the opening gesture resolves into the guaranteed 100-point ring", async ()
   }
 
   assert.equal(nodes.get("#score").textContent, "000100");
-  assert.equal(nodes.get("#prompt-title").textContent, "BUILD AN ALTERNATING LOOP");
+  assert.equal(nodes.get("#prompt-title").textContent, "DROP + BETWEEN THE TWO GLOWING − ENDS");
+  assert.deepEqual(game.__test.snapshot(), {
+    score: 100,
+    dropCount: 0,
+    particleCount: 3,
+    bondCount: 2,
+    currentPole: 1,
+    learningStage: "guided-close",
+    waitingForNext: false,
+  });
+
+  for (let frame = 0; frame < 600; frame += 1) {
+    now += 1000 / 60;
+    nextFrame(now);
+  }
+
+  const afterWaiting = game.__test.snapshot();
+  assert.equal(afterWaiting.dropCount, 0);
+  assert.equal(afterWaiting.particleCount, 3);
+  assert.equal(afterWaiting.currentPole, 1);
+  assert.equal(afterWaiting.learningStage, "guided-close");
+
+  pointer.clientX = 195;
+  canvas.listeners.get("pointerdown")(pointer);
+  assert.equal(nodes.get("#prompt-title").textContent, "RELEASE TO BRIDGE BOTH ENDS");
+  canvas.listeners.get("pointerup")(pointer);
+
+  for (let frame = 0; frame < 260; frame += 1) {
+    now += 1000 / 60;
+    nextFrame(now);
+  }
+
+  const afterEarnedLoop = game.__test.snapshot();
+  assert.equal(afterEarnedLoop.learningStage, "free");
+  assert.ok(afterEarnedLoop.score >= 200);
+  assert.equal(afterEarnedLoop.dropCount, 1);
   assert.equal(nodes.get("#failure").hidden, true);
 });

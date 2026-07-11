@@ -17,16 +17,18 @@ Then open `http://127.0.0.1:8123` on a portrait browser. It has no packages, bui
 ## Controls and rules
 
 - Slide horizontally to aim; release to drop.
+- Beads never drop automatically in this prototype. Take as long as you need to aim.
 - Tap `?` at any time for the four-rule field manual; the simulation pauses while it is open.
 - `+` and `−` attract and form permanent bonds.
 - Matching poles push apart before contact.
-- Each bead has two visible sockets and can hold at most two bonds.
-- Close an even alternating loop to clear it and score.
+- Bright connectors show real bonds; pulsing pearls mark the two open ends of each chain.
+- Build an alternating chain, then drop one opposite bead into a glowing bridge that touches both open ends.
+- Closing that even loop clears it and scores.
 - Larger rings and cascade waves are worth more.
 - Let the field remain above the coral danger line and the run ends.
 - Keyboard: left/right arrows aim; Space or Enter drops.
 
-The opening is a guaranteed six-piece closure, but the bead now falls from the player's chosen x-position before visibly snapping into the highlighted gap. Event-driven coaching then teaches bonding, loop closure, and the danger line across the first few real drops.
+The opening demonstrates a six-piece closure. The next lesson pauses on a pinned three-bead U-chain and waits indefinitely for the player to bridge its two glowing ends with a fourth bead. A missed attempt is returned for another try. Free play then keeps real bonds, endpoints, and any immediately closable bridge visible.
 
 ## Premium bar
 
